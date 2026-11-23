@@ -43,11 +43,27 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   assigneeId: string | null;
+  followerIds: string[];
   startDate: string | null; // YYYY-MM-DD
   dueDate: string | null; // YYYY-MM-DD
   createdAt: string;
   updatedAt: string;
   comments: Comment[];
+}
+
+export type NotificationType = 'assigned' | 'comment';
+
+export interface NotificationItem {
+  id: string;
+  type: NotificationType;
+  recipientId: string;
+  actorId: string;
+  taskId: string;
+  taskCode: string;
+  taskTitle: string;
+  commentPreview?: string;
+  createdAt: string;
+  read: boolean;
 }
 
 export type TeamEventType = 'meeting' | 'milestone' | 'leave';
@@ -71,6 +87,24 @@ export interface TaskFilters {
   assigneeId: string | 'all' | 'unassigned';
   projectId: string | 'all';
   priority: TaskPriority | 'all';
+}
+
+export interface LineIntegrationConfig {
+  enabled: boolean;
+  notifyOnAssign: boolean;
+  notifyOnComment: boolean;
+  notifyOnStatusChange: boolean;
+  defaultTargetId: string;
+  memberLineIds: Record<string, string>;
+}
+
+export interface TelegramIntegrationConfig {
+  enabled: boolean;
+  notifyOnAssign: boolean;
+  notifyOnComment: boolean;
+  notifyOnStatusChange: boolean;
+  defaultChatId: string;
+  memberChatIds: Record<string, string>;
 }
 
 export type SortField = 'title' | 'status' | 'priority' | 'dueDate' | 'projectId' | 'assigneeId';

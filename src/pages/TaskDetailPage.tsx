@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
+  Bell,
+  BellRing,
   MessageSquare,
   Pencil,
   Send,
@@ -33,6 +35,7 @@ export function TaskDetailPage() {
     getUserById,
     getProjectById,
     moveTaskStatus,
+    toggleFollowTask,
     updateTask,
     deleteTask,
     addComment,
@@ -61,6 +64,7 @@ export function TaskDetailPage() {
 
   const project = getProjectById(task.projectId);
   const dueMeta = getDueDateMeta(task.dueDate, task.status, lang);
+  const isFollowing = task.followerIds.includes(currentUser.id);
 
   const handleCommentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +90,34 @@ export function TaskDetailPage() {
             <span>{t.actions.back}</span>
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              aria-pressed={isFollowing}
+              onClick={() => toggleFollowTask(task.id)}
+              title={
+                isFollowing
+                  ? t.notifications.unfollowTooltip
+                  : t.notifications.followTooltip
+              }
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${
+                isFollowing
+                  ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100/80'
+                  : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              {isFollowing ? (
+                <BellRing className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              ) : (
+                <Bell className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              )}
+              <span>
+                {isFollowing ? t.notifications.followingBtn : t.notifications.followBtn}
+              </span>
+              <span className="text-[11px] opacity-75 tabular-nums">
+                {task.followerIds.length}
+              </span>
+            </button>
             <button
               type="button"
               onClick={() => openEditTaskModal(task)}

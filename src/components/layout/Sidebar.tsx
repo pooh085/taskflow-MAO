@@ -5,7 +5,9 @@ import {
   Home,
   LayoutGrid,
   List,
+  MessageCircle,
   Plus,
+  Send,
   ShieldCheck,
   Users,
   X,
@@ -42,6 +44,8 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
     { to: '/calendar', label: t.nav.calendar, icon: CalendarDays, end: false },
     { to: '/projects', label: t.nav.projects, icon: FolderKanban, end: true },
     { to: '/team', label: t.nav.team, icon: Users, end: false },
+    { to: '/integrations/line', label: t.nav.lineOA, icon: MessageCircle, end: false },
+    { to: '/integrations/telegram', label: t.nav.telegram, icon: Send, end: false },
     ...(isAdmin ? [{ to: '/admin', label: t.nav.admin, icon: ShieldCheck, end: false }] : []),
   ];
 

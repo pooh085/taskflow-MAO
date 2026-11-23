@@ -7,10 +7,12 @@ import { BoardPage } from './pages/BoardPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { GanttPage } from './pages/GanttPage';
+import { LineOAPage } from './pages/LineOAPage';
 import { ListPage } from './pages/ListPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { TaskDetailPage } from './pages/TaskDetailPage';
 import { TeamPage } from './pages/TeamPage';
+import { TelegramPage } from './pages/TelegramPage';
 
 export default function App() {
   return (
@@ -34,6 +36,8 @@ export default function App() {
               <Route path="/projects/:projectId/gantt" element={<GanttPage />} />
               <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
               <Route path="/team" element={<TeamPage />} />
+              <Route path="/integrations/line" element={<LineOAPage />} />
+              <Route path="/integrations/telegram" element={<TelegramPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

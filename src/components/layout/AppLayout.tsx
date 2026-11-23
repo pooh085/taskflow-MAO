@@ -8,6 +8,7 @@ import { ProjectModal } from '../projects/ProjectModal';
 import { TaskDetailDrawer } from '../tasks/TaskDetailDrawer';
 import { TaskModal } from '../tasks/TaskModal';
 import { GlobalSearchBar } from './GlobalSearchBar';
+import { NotificationCenter } from './NotificationCenter';
 import { Sidebar } from './Sidebar';
 
 export function AppLayout() {
@@ -37,6 +38,10 @@ export function AppLayout() {
       items.push({ label: t.nav.allProjects });
     } else if (location.pathname === '/team') {
       items.push({ label: t.nav.team });
+    } else if (location.pathname === '/integrations/line') {
+      items.push({ label: t.nav.lineOA });
+    } else if (location.pathname === '/integrations/telegram') {
+      items.push({ label: t.nav.telegram });
     } else if (location.pathname === '/admin') {
       items.push({ label: t.nav.admin });
     } else if (projectId) {
@@ -111,6 +116,8 @@ export function AppLayout() {
 
           <div className="flex items-center justify-end gap-2 sm:gap-2.5 flex-1 min-w-0">
             <GlobalSearchBar />
+
+            <NotificationCenter />
 
             {/* Language Switcher Icon Button (TH / EN) */}
             <button

@@ -1,9 +1,12 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { mockCalendarEvents } from '../data/mockCalendarEvents';
+import { mockNotifications } from '../data/mockNotifications';
 import { mockProjects } from '../data/mockProjects';
 import { mockTasks } from '../data/mockTasks';
 import { CURRENT_USER_ID, mockUsers } from '../data/mockUsers';
 import {
+  LineIntegrationConfig,
+  NotificationItem,
   PRIORITY_CONFIG,
   Project,
   STATUS_CONFIG,
@@ -15,6 +18,7 @@ import {
   TaskStatus,
   TeamEvent,
   TeamEventType,
+  TelegramIntegrationConfig,
   ToastItem,
   User,
   UserAccessRole,
@@ -74,6 +78,8 @@ interface TaskFlowContextValue {
   projects: Project[];
   users: User[];
   calendarEvents: TeamEvent[];
+  notifications: NotificationItem[];
+  unreadNotificationCount: number;
   currentUser: User;
   isAdmin: boolean;
   filters: TaskFilters;
@@ -110,15 +116,111 @@ interface TaskFlowContextValue {
   updateTask: (taskId: string, patch: Partial<TaskFormInput>) => void;
   updateTaskSchedule: (taskId: string, startDate: string | null, dueDate: string | null) => void;
   moveTaskStatus: (taskId: string, newStatus: TaskStatus) => void;
+  toggleFollowTask: (taskId: string) => void;
   deleteTask: (taskId: string) => void;
   addComment: (taskId: string, content: string) => void;
   createProject: (input: ProjectFormInput) => Project;
   deleteProject: (projectId: string) => void;
   createCalendarEvent: (input: TeamEventFormInput) => TeamEvent;
   deleteCalendarEvent: (eventId: string) => void;
+  markNotificationRead: (notificationId: string) => void;
+  toggleNotificationRead: (notificationId: string) => void;
+  markAllNotificationsRead: () => void;
+  dismissNotification: (notificationId: string) => void;
+  clearReadNotifications: () => void;
+  lineConfig: LineIntegrationConfig;
+  updateLineConfig: (patch: Partial<LineIntegrationConfig>) => void;
+  setMemberLineId: (userId: string, lineUserId: string) => void;
+  telegramConfig: TelegramIntegrationConfig;
+  updateTelegramConfig: (patch: Partial<TelegramIntegrationConfig>) => void;
+  setMemberTelegramChatId: (userId: string, chatId: string) => void;
   resetDemoData: () => void;
   addToast: (message: string, type?: ToastItem['type']) => void;
   removeToast: (id: string) => void;
+}
+
+const LINE_PREFS_STORAGE_KEY = 'taskflow_line_prefs_v1';
+
+const DEFAULT_LINE_CONFIG: LineIntegrationConfig = {
+  enabled: true,
+  notifyOnAssign: true,
+  notifyOnComment: true,
+  notifyOnStatusChange: false,
+  defaultTargetId: '',
+  memberLineIds: {},
+};
+
+function readInitialLineConfig(): LineIntegrationConfig {
+  try {
+    const raw = window.localStorage.getItem(LINE_PREFS_STORAGE_KEY);
+    if (!raw) return DEFAULT_LINE_CONFIG;
+    const parsed = JSON.parse(raw) as Partial<LineIntegrationConfig>;
+    return {
+      enabled: typeof parsed.enabled === 'boolean' ? parsed.enabled : DEFAULT_LINE_CONFIG.enabled,
+      notifyOnAssign:
+        typeof parsed.notifyOnAssign === 'boolean'
+          ? parsed.notifyOnAssign
+          : DEFAULT_LINE_CONFIG.notifyOnAssign,
+      notifyOnComment:
+        typeof parsed.notifyOnComment === 'boolean'
+          ? parsed.notifyOnComment
+          : DEFAULT_LINE_CONFIG.notifyOnComment,
+      notifyOnStatusChange:
+        typeof parsed.notifyOnStatusChange === 'boolean'
+          ? parsed.notifyOnStatusChange
+          : DEFAULT_LINE_CONFIG.notifyOnStatusChange,
+      defaultTargetId:
+        typeof parsed.defaultTargetId === 'string' ? parsed.defaultTargetId.trim() : '',
+      memberLineIds:
+        parsed.memberLineIds && typeof parsed.memberLineIds === 'object'
+          ? parsed.memberLineIds
+          : {},
+    };
+  } catch {
+    return DEFAULT_LINE_CONFIG;
+  }
+}
+
+const TELEGRAM_PREFS_STORAGE_KEY = 'taskflow_telegram_prefs_v1';
+
+const DEFAULT_TELEGRAM_CONFIG: TelegramIntegrationConfig = {
+  enabled: true,
+  notifyOnAssign: true,
+  notifyOnComment: true,
+  notifyOnStatusChange: false,
+  defaultChatId: '',
+  memberChatIds: {},
+};
+
+function readInitialTelegramConfig(): TelegramIntegrationConfig {
+  try {
+    const raw = window.localStorage.getItem(TELEGRAM_PREFS_STORAGE_KEY);
+    if (!raw) return DEFAULT_TELEGRAM_CONFIG;
+    const parsed = JSON.parse(raw) as Partial<TelegramIntegrationConfig>;
+    return {
+      enabled:
+        typeof parsed.enabled === 'boolean' ? parsed.enabled : DEFAULT_TELEGRAM_CONFIG.enabled,
+      notifyOnAssign:
+        typeof parsed.notifyOnAssign === 'boolean'
+          ? parsed.notifyOnAssign
+          : DEFAULT_TELEGRAM_CONFIG.notifyOnAssign,
+      notifyOnComment:
+        typeof parsed.notifyOnComment === 'boolean'
+          ? parsed.notifyOnComment
+          : DEFAULT_TELEGRAM_CONFIG.notifyOnComment,
+      notifyOnStatusChange:
+        typeof parsed.notifyOnStatusChange === 'boolean'
+          ? parsed.notifyOnStatusChange
+          : DEFAULT_TELEGRAM_CONFIG.notifyOnStatusChange,
+      defaultChatId: typeof parsed.defaultChatId === 'string' ? parsed.defaultChatId.trim() : '',
+      memberChatIds:
+        parsed.memberChatIds && typeof parsed.memberChatIds === 'object'
+          ? parsed.memberChatIds
+          : {},
+    };
+  } catch {
+    return DEFAULT_TELEGRAM_CONFIG;
+  }
 }
 
 const DEFAULT_FILTERS: TaskFilters = {
@@ -154,6 +256,11 @@ export function TaskFlowProvider({ children }: { children: React.ReactNode }) {
   const [rawProjects, setRawProjects] = useState<Project[]>(mockProjects);
   const [rawUsers, setRawUsers] = useState<User[]>(mockUsers);
   const [rawEvents, setRawEvents] = useState<TeamEvent[]>(mockCalendarEvents);
+  const [rawNotifications, setRawNotifications] = useState<NotificationItem[]>(mockNotifications);
+  const [lineConfig, setLineConfig] = useState<LineIntegrationConfig>(readInitialLineConfig);
+  const [telegramConfig, setTelegramConfig] = useState<TelegramIntegrationConfig>(
+    readInitialTelegramConfig
+  );
   const [currentUserId, setCurrentUserId] = useState<string>(CURRENT_USER_ID);
   const [filters, setFilters] = useState<TaskFilters>(DEFAULT_FILTERS);
   const [sortConfig, setSortConfig] = useState<SortConfig>({
@@ -191,6 +298,193 @@ export function TaskFlowProvider({ children }: { children: React.ReactNode }) {
   );
 
   const isAdmin = currentUser?.accessRole === 'admin';
+
+  const notifications = useMemo(() => {
+    const taskTitleMap = new Map(tasks.map((item) => [item.id, item.title]));
+    return rawNotifications
+      .filter((item) => item.recipientId === currentUser.id)
+      .map((item) => ({
+        ...item,
+        taskTitle: taskTitleMap.get(item.taskId) ?? item.taskTitle,
+      }))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [rawNotifications, currentUser.id, tasks]);
+
+  const unreadNotificationCount = useMemo(
+    () => notifications.filter((n) => !n.read).length,
+    [notifications]
+  );
+
+  const persistLineConfig = useCallback((next: LineIntegrationConfig) => {
+    try {
+      window.localStorage.setItem(LINE_PREFS_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const updateLineConfig = useCallback(
+    (patch: Partial<LineIntegrationConfig>) => {
+      setLineConfig((prev) => {
+        const next = { ...prev, ...patch };
+        persistLineConfig(next);
+        return next;
+      });
+    },
+    [persistLineConfig]
+  );
+
+  const setMemberLineId = useCallback(
+    (userId: string, lineUserId: string) => {
+      setLineConfig((prev) => {
+        const trimmed = lineUserId.trim();
+        const nextMap = { ...prev.memberLineIds };
+        if (trimmed) {
+          nextMap[userId] = trimmed;
+        } else {
+          delete nextMap[userId];
+        }
+        const next = { ...prev, memberLineIds: nextMap };
+        persistLineConfig(next);
+        return next;
+      });
+    },
+    [persistLineConfig]
+  );
+
+  const dispatchLineAlert = useCallback(
+    (payload: {
+      eventType: 'assigned' | 'comment' | 'status_changed';
+      targetIds: string[];
+      taskId: string;
+      taskCode: string;
+      taskTitle: string;
+      projectId: string;
+      statusLabel?: string;
+      commentPreview?: string;
+      dueDate?: string | null;
+    }) => {
+      if (!lineConfig.enabled) return;
+      if (payload.eventType === 'assigned' && !lineConfig.notifyOnAssign) return;
+      if (payload.eventType === 'comment' && !lineConfig.notifyOnComment) return;
+      if (payload.eventType === 'status_changed' && !lineConfig.notifyOnStatusChange) return;
+
+      const uniqueTargets = Array.from(new Set(payload.targetIds.filter(Boolean)));
+      // Fall back to workspace target (or empty string so server can use LINE_DEFAULT_TARGET_ID)
+      const destinations =
+        uniqueTargets.length > 0 ? uniqueTargets : [lineConfig.defaultTargetId.trim()];
+
+      const projectName = projects.find((p) => p.id === payload.projectId)?.name ?? '';
+
+      for (const targetId of destinations) {
+        void fetch('/api/line/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventType: payload.eventType,
+            targetId: targetId || undefined,
+            taskId: payload.taskId,
+            taskCode: payload.taskCode,
+            taskTitle: payload.taskTitle,
+            projectName,
+            actorName: currentUser.name,
+            statusLabel: payload.statusLabel,
+            commentPreview: payload.commentPreview,
+            dueDate: payload.dueDate ?? undefined,
+            lang,
+          }),
+        }).catch(() => {
+          // Non-blocking background push; errors are captured in server delivery log
+        });
+      }
+    },
+    [lineConfig, projects, currentUser.name, lang]
+  );
+
+  const persistTelegramConfig = useCallback((next: TelegramIntegrationConfig) => {
+    try {
+      window.localStorage.setItem(TELEGRAM_PREFS_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const updateTelegramConfig = useCallback(
+    (patch: Partial<TelegramIntegrationConfig>) => {
+      setTelegramConfig((prev) => {
+        const next = { ...prev, ...patch };
+        persistTelegramConfig(next);
+        return next;
+      });
+    },
+    [persistTelegramConfig]
+  );
+
+  const setMemberTelegramChatId = useCallback(
+    (userId: string, chatId: string) => {
+      setTelegramConfig((prev) => {
+        const trimmed = chatId.trim();
+        const nextMap = { ...prev.memberChatIds };
+        if (trimmed) {
+          nextMap[userId] = trimmed;
+        } else {
+          delete nextMap[userId];
+        }
+        const next = { ...prev, memberChatIds: nextMap };
+        persistTelegramConfig(next);
+        return next;
+      });
+    },
+    [persistTelegramConfig]
+  );
+
+  const dispatchTelegramAlert = useCallback(
+    (payload: {
+      eventType: 'assigned' | 'comment' | 'status_changed';
+      chatIds: string[];
+      taskId: string;
+      taskCode: string;
+      taskTitle: string;
+      projectId: string;
+      statusLabel?: string;
+      commentPreview?: string;
+      dueDate?: string | null;
+    }) => {
+      if (!telegramConfig.enabled) return;
+      if (payload.eventType === 'assigned' && !telegramConfig.notifyOnAssign) return;
+      if (payload.eventType === 'comment' && !telegramConfig.notifyOnComment) return;
+      if (payload.eventType === 'status_changed' && !telegramConfig.notifyOnStatusChange) return;
+
+      const uniqueChats = Array.from(new Set(payload.chatIds.filter(Boolean)));
+      const destinations =
+        uniqueChats.length > 0 ? uniqueChats : [telegramConfig.defaultChatId.trim()];
+
+      const projectName = projects.find((p) => p.id === payload.projectId)?.name ?? '';
+
+      for (const chatId of destinations) {
+        void fetch('/api/telegram/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventType: payload.eventType,
+            chatId: chatId || undefined,
+            taskId: payload.taskId,
+            taskCode: payload.taskCode,
+            taskTitle: payload.taskTitle,
+            projectName,
+            actorName: currentUser.name,
+            statusLabel: payload.statusLabel,
+            commentPreview: payload.commentPreview,
+            dueDate: payload.dueDate ?? undefined,
+            lang,
+          }),
+        }).catch(() => {
+          // Non-blocking background push; errors are captured in server delivery log
+        });
+      }
+    },
+    [telegramConfig, projects, currentUser.name, lang]
+  );
 
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((item) => item.id !== id));
@@ -464,6 +758,10 @@ export function TaskFlowProvider({ children }: { children: React.ReactNode }) {
       const code = `${projectKey}-${101 + existingCount}`;
       const now = new Date().toISOString().slice(0, 19);
 
+      const initialFollowers = Array.from(
+        new Set([currentUser.id, ...(input.assigneeId ? [input.assigneeId] : [])])
+      );
+
       const newTask: Task = {
         id: `t-${Date.now()}`,
         code,
@@ -473,6 +771,7 @@ export function TaskFlowProvider({ children }: { children: React.ReactNode }) {
         status: input.status,
         priority: input.priority,
         assigneeId: input.assigneeId,
+        followerIds: initialFollowers,
         startDate: input.startDate || null,
         dueDate: input.dueDate || null,
         createdAt: now,
@@ -481,31 +780,147 @@ export function TaskFlowProvider({ children }: { children: React.ReactNode }) {
       };
 
       setRawTasks((prev) => [newTask, ...prev]);
+
+      if (newTask.assigneeId) {
+        const assignNotification: NotificationItem = {
+          id: `n-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          type: 'assigned',
+          recipientId: newTask.assigneeId,
+          actorId: currentUser.id,
+          taskId: newTask.id,
+          taskCode: newTask.code,
+          taskTitle: newTask.title,
+          createdAt: now,
+          read: false,
+        };
+        setRawNotifications((prev) => [assignNotification, ...prev]);
+
+        const mappedTarget = lineConfig.memberLineIds[newTask.assigneeId];
+        dispatchLineAlert({
+          eventType: 'assigned',
+          targetIds: mappedTarget ? [mappedTarget] : [],
+          taskId: newTask.id,
+          taskCode: newTask.code,
+          taskTitle: newTask.title,
+          projectId: newTask.projectId,
+          statusLabel: getStatusLabel(newTask.status),
+          dueDate: newTask.dueDate,
+        });
+
+        const mappedTelegramChat = telegramConfig.memberChatIds[newTask.assigneeId];
+        dispatchTelegramAlert({
+          eventType: 'assigned',
+          chatIds: mappedTelegramChat ? [mappedTelegramChat] : [],
+          taskId: newTask.id,
+          taskCode: newTask.code,
+          taskTitle: newTask.title,
+          projectId: newTask.projectId,
+          statusLabel: getStatusLabel(newTask.status),
+          dueDate: newTask.dueDate,
+        });
+      }
+
       addToast(t.toasts.taskCreated(newTask.code));
       return newTask;
     },
-    [projects, rawTasks, addToast, t]
+    [
+      projects,
+      rawTasks,
+      currentUser.id,
+      lineConfig.memberLineIds,
+      dispatchLineAlert,
+      telegramConfig.memberChatIds,
+      dispatchTelegramAlert,
+      getStatusLabel,
+      addToast,
+      t,
+    ]
   );
 
   const updateTask = useCallback(
     (taskId: string, patch: Partial<TaskFormInput>) => {
       const now = new Date().toISOString().slice(0, 19);
+      const existing = rawTasks.find((item) => item.id === taskId);
+
       setRawTasks((prev) =>
         prev.map((task) => {
           if (task.id !== taskId) return task;
+          const nextAssigneeId =
+            patch.assigneeId !== undefined ? patch.assigneeId : task.assigneeId;
+          const nextFollowers =
+            nextAssigneeId && !task.followerIds.includes(nextAssigneeId)
+              ? [...task.followerIds, nextAssigneeId]
+              : task.followerIds;
+
           return {
             ...task,
             ...patch,
             title: patch.title !== undefined ? patch.title.trim() : task.title,
             description:
               patch.description !== undefined ? patch.description.trim() : task.description,
+            followerIds: nextFollowers,
             updatedAt: now,
           };
         })
       );
+
+      if (
+        existing &&
+        patch.assigneeId &&
+        patch.assigneeId !== existing.assigneeId
+      ) {
+        const nextTitle = patch.title !== undefined ? patch.title.trim() : existing.title;
+        const assignNotification: NotificationItem = {
+          id: `n-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          type: 'assigned',
+          recipientId: patch.assigneeId,
+          actorId: currentUser.id,
+          taskId: existing.id,
+          taskCode: existing.code,
+          taskTitle: nextTitle,
+          createdAt: now,
+          read: false,
+        };
+        setRawNotifications((prev) => [assignNotification, ...prev]);
+
+        const mappedTarget = lineConfig.memberLineIds[patch.assigneeId];
+        dispatchLineAlert({
+          eventType: 'assigned',
+          targetIds: mappedTarget ? [mappedTarget] : [],
+          taskId: existing.id,
+          taskCode: existing.code,
+          taskTitle: nextTitle,
+          projectId: patch.projectId ?? existing.projectId,
+          statusLabel: getStatusLabel(patch.status ?? existing.status),
+          dueDate: patch.dueDate !== undefined ? patch.dueDate : existing.dueDate,
+        });
+
+        const mappedTelegramChat = telegramConfig.memberChatIds[patch.assigneeId];
+        dispatchTelegramAlert({
+          eventType: 'assigned',
+          chatIds: mappedTelegramChat ? [mappedTelegramChat] : [],
+          taskId: existing.id,
+          taskCode: existing.code,
+          taskTitle: nextTitle,
+          projectId: patch.projectId ?? existing.projectId,
+          statusLabel: getStatusLabel(patch.status ?? existing.status),
+          dueDate: patch.dueDate !== undefined ? patch.dueDate : existing.dueDate,
+        });
+      }
+
       addToast(t.toasts.taskUpdated);
     },
-    [addToast, t]
+    [
+      rawTasks,
+      currentUser.id,
+      lineConfig.memberLineIds,
+      dispatchLineAlert,
+      telegramConfig.memberChatIds,
+      dispatchTelegramAlert,
+      getStatusLabel,
+      addToast,
+      t,
+    ]
   );
 
   const updateTaskSchedule = useCallback(
@@ -534,9 +949,73 @@ export function TaskFlowProvider({ children }: { children: React.ReactNode }) {
           task.id === taskId ? { ...task, status: newStatus, updatedAt: now } : task
         )
       );
+
+      const mappedTarget = target.assigneeId
+        ? lineConfig.memberLineIds[target.assigneeId]
+        : undefined;
+      dispatchLineAlert({
+        eventType: 'status_changed',
+        targetIds: mappedTarget ? [mappedTarget] : [],
+        taskId: target.id,
+        taskCode: target.code,
+        taskTitle: target.title,
+        projectId: target.projectId,
+        statusLabel: getStatusLabel(newStatus),
+        dueDate: target.dueDate,
+      });
+
+      const mappedTelegramChat = target.assigneeId
+        ? telegramConfig.memberChatIds[target.assigneeId]
+        : undefined;
+      dispatchTelegramAlert({
+        eventType: 'status_changed',
+        chatIds: mappedTelegramChat ? [mappedTelegramChat] : [],
+        taskId: target.id,
+        taskCode: target.code,
+        taskTitle: target.title,
+        projectId: target.projectId,
+        statusLabel: getStatusLabel(newStatus),
+        dueDate: target.dueDate,
+      });
+
       addToast(t.toasts.statusChanged(target.code, getStatusLabel(newStatus)));
     },
-    [rawTasks, addToast, t, getStatusLabel]
+    [
+      rawTasks,
+      lineConfig.memberLineIds,
+      dispatchLineAlert,
+      telegramConfig.memberChatIds,
+      dispatchTelegramAlert,
+      addToast,
+      t,
+      getStatusLabel,
+    ]
+  );
+
+  const toggleFollowTask = useCallback(
+    (taskId: string) => {
+      const target = rawTasks.find((item) => item.id === taskId);
+      if (!target) return;
+      const isFollowing = target.followerIds.includes(currentUser.id);
+      setRawTasks((prev) =>
+        prev.map((task) => {
+          if (task.id !== taskId) return task;
+          return {
+            ...task,
+            followerIds: isFollowing
+              ? task.followerIds.filter((id) => id !== currentUser.id)
+              : [...task.followerIds, currentUser.id],
+          };
+        })
+      );
+      addToast(
+        isFollowing
+          ? t.toasts.unfollowedTask(target.code)
+          : t.toasts.followingTask(target.code),
+        'info'
+      );
+    },
+    [rawTasks, currentUser.id, addToast, t]
   );
 
   const deleteTask = useCallback(
@@ -544,6 +1023,7 @@ export function TaskFlowProvider({ children }: { children: React.ReactNode }) {
       if (!isAdmin) return;
       const target = rawTasks.find((item) => item.id === taskId);
       setRawTasks((prev) => prev.filter((item) => item.id !== taskId));
+      setRawNotifications((prev) => prev.filter((item) => item.taskId !== taskId));
       if (selectedTaskId === taskId) {
         setSelectedTaskId(null);
       }
@@ -558,6 +1038,7 @@ export function TaskFlowProvider({ children }: { children: React.ReactNode }) {
     (taskId: string, content: string) => {
       const trimmed = content.trim();
       if (!trimmed) return;
+      const target = rawTasks.find((item) => item.id === taskId);
       const now = new Date().toISOString().slice(0, 19);
       const newComment = {
         id: `c-${Date.now()}`,
@@ -569,13 +1050,80 @@ export function TaskFlowProvider({ children }: { children: React.ReactNode }) {
       setRawTasks((prev) =>
         prev.map((task) =>
           task.id === taskId
-            ? { ...task, comments: [...task.comments, newComment], updatedAt: now }
+            ? {
+                ...task,
+                comments: [...task.comments, newComment],
+                updatedAt: now,
+              }
             : task
         )
       );
+
+      if (target) {
+        const recipients = target.followerIds.filter((uid) => uid !== currentUser.id);
+        const preview = trimmed.length > 110 ? `${trimmed.slice(0, 107)}...` : trimmed;
+        if (recipients.length > 0) {
+          const newAlerts: NotificationItem[] = recipients.map((recipientId, idx) => ({
+            id: `n-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 5)}`,
+            type: 'comment',
+            recipientId,
+            actorId: currentUser.id,
+            taskId: target.id,
+            taskCode: target.code,
+            taskTitle: target.title,
+            commentPreview: preview,
+            createdAt: now,
+            read: false,
+          }));
+          setRawNotifications((prev) => [...newAlerts, ...prev]);
+
+          const followerLineTargets = recipients
+            .map((uid) => lineConfig.memberLineIds[uid])
+            .filter((val): val is string => Boolean(val));
+
+          dispatchLineAlert({
+            eventType: 'comment',
+            targetIds: followerLineTargets,
+            taskId: target.id,
+            taskCode: target.code,
+            taskTitle: target.title,
+            projectId: target.projectId,
+            statusLabel: getStatusLabel(target.status),
+            commentPreview: preview,
+            dueDate: target.dueDate,
+          });
+
+          const followerTelegramChats = recipients
+            .map((uid) => telegramConfig.memberChatIds[uid])
+            .filter((val): val is string => Boolean(val));
+
+          dispatchTelegramAlert({
+            eventType: 'comment',
+            chatIds: followerTelegramChats,
+            taskId: target.id,
+            taskCode: target.code,
+            taskTitle: target.title,
+            projectId: target.projectId,
+            statusLabel: getStatusLabel(target.status),
+            commentPreview: preview,
+            dueDate: target.dueDate,
+          });
+        }
+      }
+
       addToast(t.toasts.commentAdded);
     },
-    [currentUser.id, addToast, t]
+    [
+      rawTasks,
+      currentUser.id,
+      lineConfig.memberLineIds,
+      dispatchLineAlert,
+      telegramConfig.memberChatIds,
+      dispatchTelegramAlert,
+      getStatusLabel,
+      addToast,
+      t,
+    ]
   );
 
   const createProject = useCallback(
@@ -646,11 +1194,45 @@ export function TaskFlowProvider({ children }: { children: React.ReactNode }) {
     [calendarEvents, addToast, t]
   );
 
+  const markNotificationRead = useCallback((notificationId: string) => {
+    setRawNotifications((prev) =>
+      prev.map((item) => (item.id === notificationId ? { ...item, read: true } : item))
+    );
+  }, []);
+
+  const toggleNotificationRead = useCallback((notificationId: string) => {
+    setRawNotifications((prev) =>
+      prev.map((item) =>
+        item.id === notificationId ? { ...item, read: !item.read } : item
+      )
+    );
+  }, []);
+
+  const markAllNotificationsRead = useCallback(() => {
+    setRawNotifications((prev) =>
+      prev.map((item) =>
+        item.recipientId === currentUser.id ? { ...item, read: true } : item
+      )
+    );
+    addToast(t.toasts.allNotificationsRead, 'info');
+  }, [currentUser.id, addToast, t]);
+
+  const dismissNotification = useCallback((notificationId: string) => {
+    setRawNotifications((prev) => prev.filter((item) => item.id !== notificationId));
+  }, []);
+
+  const clearReadNotifications = useCallback(() => {
+    setRawNotifications((prev) =>
+      prev.filter((item) => !(item.recipientId === currentUser.id && item.read))
+    );
+  }, [currentUser.id]);
+
   const resetDemoData = useCallback(() => {
     setRawTasks(mockTasks);
     setRawProjects(mockProjects);
     setRawUsers(mockUsers);
     setRawEvents(mockCalendarEvents);
+    setRawNotifications(mockNotifications);
     setCurrentUserId(CURRENT_USER_ID);
     setFilters(DEFAULT_FILTERS);
     setSelectedTaskId(null);
@@ -663,6 +1245,8 @@ export function TaskFlowProvider({ children }: { children: React.ReactNode }) {
       projects,
       users,
       calendarEvents,
+      notifications,
+      unreadNotificationCount,
       currentUser,
       isAdmin,
       filters,
@@ -694,12 +1278,24 @@ export function TaskFlowProvider({ children }: { children: React.ReactNode }) {
       updateTask,
       updateTaskSchedule,
       moveTaskStatus,
+      toggleFollowTask,
       deleteTask,
       addComment,
       createProject,
       deleteProject,
       createCalendarEvent,
       deleteCalendarEvent,
+      markNotificationRead,
+      toggleNotificationRead,
+      markAllNotificationsRead,
+      dismissNotification,
+      clearReadNotifications,
+      lineConfig,
+      updateLineConfig,
+      setMemberLineId,
+      telegramConfig,
+      updateTelegramConfig,
+      setMemberTelegramChatId,
       resetDemoData,
       addToast,
       removeToast,
@@ -709,6 +1305,8 @@ export function TaskFlowProvider({ children }: { children: React.ReactNode }) {
       projects,
       users,
       calendarEvents,
+      notifications,
+      unreadNotificationCount,
       currentUser,
       isAdmin,
       filters,
@@ -740,12 +1338,24 @@ export function TaskFlowProvider({ children }: { children: React.ReactNode }) {
       updateTask,
       updateTaskSchedule,
       moveTaskStatus,
+      toggleFollowTask,
       deleteTask,
       addComment,
       createProject,
       deleteProject,
       createCalendarEvent,
       deleteCalendarEvent,
+      markNotificationRead,
+      toggleNotificationRead,
+      markAllNotificationsRead,
+      dismissNotification,
+      clearReadNotifications,
+      lineConfig,
+      updateLineConfig,
+      setMemberLineId,
+      telegramConfig,
+      updateTelegramConfig,
+      setMemberTelegramChatId,
       resetDemoData,
       addToast,
       removeToast,

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
   AlertCircle,
+  Bell,
+  BellRing,
   ExternalLink,
   MessageSquare,
   Pencil,
@@ -32,6 +34,7 @@ export function TaskDetailDrawer() {
     getUserById,
     getProjectById,
     moveTaskStatus,
+    toggleFollowTask,
     updateTask,
     deleteTask,
     addComment,
@@ -64,6 +67,7 @@ export function TaskDetailDrawer() {
 
   const project = getProjectById(selectedTask.projectId);
   const dueMeta = getDueDateMeta(selectedTask.dueDate, selectedTask.status, lang);
+  const isFollowing = selectedTask.followerIds.includes(currentUser.id);
 
   const handleCommentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,6 +110,33 @@ export function TaskDetailDrawer() {
             </div>
 
             <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                aria-pressed={isFollowing}
+                onClick={() => toggleFollowTask(selectedTask.id)}
+                title={
+                  isFollowing
+                    ? t.notifications.unfollowTooltip
+                    : t.notifications.followTooltip
+                }
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${
+                  isFollowing
+                    ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100/80'
+                    : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                {isFollowing ? (
+                  <BellRing className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                ) : (
+                  <Bell className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                )}
+                <span>
+                  {isFollowing ? t.notifications.followingBtn : t.notifications.followBtn}
+                </span>
+                <span className="text-[11px] opacity-75 tabular-nums">
+                  {selectedTask.followerIds.length}
+                </span>
+              </button>
               <Link
                 to={`/tasks/${selectedTask.id}`}
                 onClick={closeTaskDetail}

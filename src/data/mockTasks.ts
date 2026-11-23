@@ -11,6 +11,7 @@ export const mockTasks: Task[] = [
     status: 'in_progress',
     priority: 'high',
     assigneeId: 'u-2',
+    followerIds: ['u-1', 'u-2', 'u-3'],
     startDate: '2026-11-16',
     dueDate: '2026-11-22', // Due today (reference date 2026-11-22)
     createdAt: '2026-11-10T09:15:00',
@@ -42,6 +43,7 @@ export const mockTasks: Task[] = [
     status: 'in_progress',
     priority: 'critical',
     assigneeId: 'u-3',
+    followerIds: ['u-1', 'u-3', 'u-5'],
     startDate: '2026-11-14',
     dueDate: '2026-11-19', // Overdue edge case
     createdAt: '2026-11-12T10:00:00',
@@ -66,6 +68,7 @@ export const mockTasks: Task[] = [
     status: 'in_review',
     priority: 'medium',
     assigneeId: 'u-3',
+    followerIds: ['u-1', 'u-3', 'u-5'],
     startDate: '2026-11-19',
     dueDate: '2026-11-25',
     createdAt: '2026-11-14T13:30:00',
@@ -89,6 +92,7 @@ export const mockTasks: Task[] = [
     status: 'done',
     priority: 'low',
     assigneeId: 'u-2',
+    followerIds: ['u-1', 'u-2'],
     startDate: '2026-11-09',
     dueDate: '2026-11-17',
     createdAt: '2026-11-05T09:00:00',
@@ -105,6 +109,7 @@ export const mockTasks: Task[] = [
     status: 'todo',
     priority: 'low',
     assigneeId: null, // Unassigned edge case
+    followerIds: ['u-1'],
     startDate: null,
     dueDate: null, // No due date edge case
     createdAt: '2026-11-20T11:00:00',
@@ -121,6 +126,7 @@ export const mockTasks: Task[] = [
     status: 'in_progress',
     priority: 'high',
     assigneeId: 'u-3',
+    followerIds: ['u-1', 'u-2', 'u-3'],
     startDate: '2026-11-18',
     dueDate: '2026-11-26',
     createdAt: '2026-11-11T08:45:00',
@@ -144,6 +150,7 @@ export const mockTasks: Task[] = [
     status: 'todo',
     priority: 'medium',
     assigneeId: 'u-4',
+    followerIds: ['u-3', 'u-4'],
     startDate: '2026-11-23',
     dueDate: '2026-11-29',
     createdAt: '2026-11-15T14:20:00',
@@ -159,6 +166,7 @@ export const mockTasks: Task[] = [
     status: 'in_review',
     priority: 'medium',
     assigneeId: 'u-5',
+    followerIds: ['u-1', 'u-3', 'u-5'],
     startDate: '2026-11-16',
     dueDate: '2026-11-21', // Overdue in review edge case
     createdAt: '2026-11-13T11:30:00',
@@ -182,6 +190,7 @@ export const mockTasks: Task[] = [
     status: 'done',
     priority: 'medium',
     assigneeId: 'u-2',
+    followerIds: ['u-1', 'u-2'],
     startDate: '2026-11-08',
     dueDate: '2026-11-15',
     createdAt: '2026-11-02T10:00:00',
@@ -205,6 +214,7 @@ export const mockTasks: Task[] = [
     status: 'todo',
     priority: 'high',
     assigneeId: 'u-4',
+    followerIds: ['u-1', 'u-4'],
     startDate: '2026-11-19',
     dueDate: '2026-11-24',
     createdAt: '2026-11-16T09:30:00',
@@ -220,6 +230,7 @@ export const mockTasks: Task[] = [
     status: 'in_review',
     priority: 'critical',
     assigneeId: 'u-1',
+    followerIds: ['u-1', 'u-4'],
     startDate: '2026-11-17',
     dueDate: '2026-11-22', // Due today
     createdAt: '2026-11-14T15:00:00',
@@ -243,6 +254,7 @@ export const mockTasks: Task[] = [
     status: 'todo',
     priority: 'low',
     assigneeId: null, // Unassigned
+    followerIds: ['u-1', 'u-4'],
     startDate: '2026-11-27',
     dueDate: '2026-12-03',
     createdAt: '2026-11-18T16:15:00',
@@ -258,6 +270,7 @@ export const mockTasks: Task[] = [
     status: 'done',
     priority: 'medium',
     assigneeId: 'u-4',
+    followerIds: ['u-1', 'u-4'],
     startDate: '2026-11-11',
     dueDate: '2026-11-18',
     createdAt: '2026-11-08T10:00:00',

@@ -7,6 +7,7 @@ import {
   PRIORITY_LABELS,
   SEED_COMMENT_EN,
   SEED_EVENT_EN,
+  SEED_NOTIFICATION_PREVIEW_EN,
   SEED_PROJECT_EN,
   SEED_TASK_EN,
   SEED_USER_EN,
@@ -16,6 +17,7 @@ import {
 } from '../i18n/translations';
 import {
   Comment,
+  NotificationItem,
   Project,
   Task,
   TaskPriority,
@@ -42,6 +44,7 @@ interface LanguageContextValue {
   localizeTask: (task: Task) => Task;
   localizeCommentContent: (comment: Comment) => string;
   localizeCalendarEvent: (event: TeamEvent) => TeamEvent;
+  localizeNotificationPreview: (notification: NotificationItem) => string | undefined;
 }
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
@@ -162,6 +165,15 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     [lang]
   );
 
+  const localizeNotificationPreview = useCallback(
+    (notification: NotificationItem): string | undefined => {
+      if (!notification.commentPreview) return undefined;
+      if (lang === 'th') return notification.commentPreview;
+      return SEED_NOTIFICATION_PREVIEW_EN[notification.id] ?? notification.commentPreview;
+    },
+    [lang]
+  );
+
   const value = useMemo<LanguageContextValue>(
     () => ({
       lang,
@@ -175,6 +187,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       localizeTask,
       localizeCommentContent,
       localizeCalendarEvent,
+      localizeNotificationPreview,
     }),
     [
       lang,
@@ -187,6 +200,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       localizeTask,
       localizeCommentContent,
       localizeCalendarEvent,
+      localizeNotificationPreview,
     ]
   );
 
